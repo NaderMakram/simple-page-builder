@@ -107,3 +107,9 @@ add_action('init', function () {
         print_r($result);
     }
 });
+
+// add pages
+add_action('rest_api_init', function () {
+    $controller = new SPB_API_REST_Controller();
+    $controller->register_routes();
+});
