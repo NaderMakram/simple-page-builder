@@ -2,7 +2,7 @@
 
 /**
  * Plugin Name: Simple Page Builder
- * Description: A secure REST API-based bulk page builder with API key authentication and webhooks.
+ * Description: A secure REST API-based bulk page builder with API key authentication.
  * Version: 1.0.0
  * Author: Nader Makram
  * Text Domain: simple-page-builder
@@ -56,6 +56,9 @@ function spb_init()
 }
 add_action('plugins_loaded', 'spb_init');
 
+add_action('admin_init', function () {
+    register_setting('spb_settings', 'spb_rate_limit', ['type' => 'integer', 'default' => 100]);
+});
 
 // create custom table for api keys
 register_activation_hook(__FILE__, 'spb_install_plugin');
@@ -67,6 +70,7 @@ function spb_install_plugin()
     $table_name = $wpdb->prefix . 'spb_api_keys';
     $charset = $wpdb->get_charset_collate();
 
+    // API keys table
     $sql = "CREATE TABLE $table_name (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         key_name VARCHAR(255) NOT NULL,
@@ -80,11 +84,35 @@ function spb_install_plugin()
         last_used_at DATETIME NULL,
         request_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
         PRIMARY KEY (id),
-        INDEX (status),
-        INDEX (created_at)
+        KEY status_idx (status),
+        KEY created_at_idx (created_at)
     ) $charset;";
 
+    // API logs table
+    $sql_api = "CREATE TABLE {$wpdb->prefix}spb_api_logs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    timestamp DATETIME NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    api_key_id BIGINT UNSIGNED NULL,
+    endpoint VARCHAR(255),
+    status VARCHAR(20),
+    ip_address VARCHAR(100),
+    response_time FLOAT,
+    PRIMARY KEY (id)
+) $charset;";
+
+    // Pages created log
+    $sql_page = "CREATE TABLE {$wpdb->prefix}spb_page_logs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    post_id BIGINT UNSIGNED NOT NULL,
+    api_key_name VARCHAR(255) NOT NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (id)
+) $charset;";
+
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta($sql_api);
+    dbDelta($sql_page);
     dbDelta($sql);
 }
 

@@ -52,8 +52,8 @@ class SPB_API_Key_Manager
 
         return [
             'id'         => $id,
-            'api_key'    => $api_key,    // 🔥 shown only once
-            'secret_key' => $secret_key, // 🔥 shown only once
+            'api_key'    => $api_key,
+            'secret_key' => $secret_key,
         ];
     }
 

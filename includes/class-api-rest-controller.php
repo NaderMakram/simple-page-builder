@@ -79,7 +79,7 @@ class SPB_API_REST_Controller
             ];
 
             // Save info for Admin → Created Pages tab
-            // SPB_Logger::log_page_created($post_id, $api_key_obj->key_name);
+            SPB_Logger::log_page_created($post_id, $api_key_obj->key_name);
         }
 
         $response = [
@@ -88,8 +88,6 @@ class SPB_API_REST_Controller
             'pages'      => $created,
         ];
 
-        // 🔥 Next phase: trigger webhook
-        do_action('spb_pages_created', $response, $api_key_obj);
 
         return $response;
     }
