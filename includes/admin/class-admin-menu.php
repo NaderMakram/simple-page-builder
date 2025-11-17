@@ -11,6 +11,7 @@ class SPB_Admin_Menu
         add_action('admin_menu', [$this, 'register_menu']);
         add_action('admin_post_spb_generate_key', [$this, 'handle_generate_key']);
         add_action('admin_post_spb_revoke_key', [$this, 'handle_revoke_key']);
+        add_action('admin_post_spb_activate_key', [$this, 'handle_activate_key']);
     }
 
     public function register_menu()
@@ -64,10 +65,33 @@ class SPB_Admin_Menu
     {
         $manager = new SPB_API_Key_Manager();
 
-        // Handle messages
-        if (isset($_GET['spb_message'])) {
-            echo '<div class="notice notice-success"><p>' . esc_html($_GET['spb_message']) . '</p></div>';
+        // Check for newly generated key
+        $new_key = get_transient('spb_new_api_key_' . get_current_user_id());
+        if ($new_key) {
+            echo '<div class="notice notice-success"><p>API Key generated!</p></div>';
+
+            echo '<div style="margin-bottom: 20px;">';
+
+            // API Key
+            echo '<div class="spb-api-key-item" style="margin-bottom: 10px;">';
+            echo '<strong>API Key:</strong> ';
+            echo '<input type="text" value="' . esc_attr($new_key['api_key']) . '" readonly id="spb_api_key" style="width:400px;"> ';
+            echo '<button class="button spb-copy-btn" data-target="#spb_api_key">Copy</button>';
+            echo '</div>';
+
+            // Secret Key
+            echo '<div class="spb-api-key-item">';
+            echo '<strong>Secret Key:</strong> ';
+            echo '<input type="text" value="' . esc_attr($new_key['secret_key']) . '" readonly id="spb_secret_key" style="width:400px;"> ';
+            echo '<button class="button spb-copy-btn" data-target="#spb_secret_key">Copy</button>';
+            echo '</div>';
+
+            echo '</div>';
+
+            // Delete transient so it shows only once
+            delete_transient('spb_new_api_key_' . get_current_user_id());
         }
+
 
         // Generate Key Form
         echo '<h2>Generate New API Key</h2>';
@@ -94,14 +118,26 @@ class SPB_Admin_Menu
             echo '<td>' . esc_html($key->created_at) . '</td>';
             echo '<td>' . esc_html($key->last_used_at) . '</td>';
             echo '<td>' . esc_html($key->request_count) . '</td>';
-            echo '<td>
-            <form method="post" action="' . admin_url('admin-post.php') . '" style="display:inline;">
-                <input type="hidden" name="action" value="spb_revoke_key">
-                <input type="hidden" name="key_id" value="' . esc_attr($key->id) . '">
-                ' . wp_nonce_field('spb_revoke_key_nonce', '_wpnonce', true, false) . '
-                <input type="submit" class="button" value="Revoke">
-            </form>
-        </td>';
+            echo '<td>';
+            if ($key->status === 'active') {
+                // Revoke button
+                echo '<form method="post" action="' . admin_url('admin-post.php') . '" style="display:inline;">
+            <input type="hidden" name="action" value="spb_revoke_key">
+            <input type="hidden" name="key_id" value="' . esc_attr($key->id) . '">
+            ' . wp_nonce_field('spb_revoke_key_nonce', '_wpnonce', true, false) . '
+            <input type="submit" class="button" value="Revoke">
+        </form>';
+            } else {
+                // Activate button
+                echo '<form method="post" action="' . admin_url('admin-post.php') . '" style="display:inline;">
+            <input type="hidden" name="action" value="spb_activate_key">
+            <input type="hidden" name="key_id" value="' . esc_attr($key->id) . '">
+            ' . wp_nonce_field('spb_activate_key_nonce', '_wpnonce', true, false) . '
+            <input type="submit" class="button button-primary" value="Activate">
+        </form>';
+            }
+            echo '</td>';
+
             echo '</tr>';
         }
         echo '</tbody></table>';
@@ -119,10 +155,14 @@ class SPB_Admin_Menu
         $manager = new SPB_API_Key_Manager();
         $key = $manager->generate_key($name);
 
-        // Show key once
-        wp_redirect(admin_url('tools.php?page=spb-page-builder&tab=api_keys&spb_message=' . urlencode("API Key generated! Key: {$key['api_key']} Secret: {$key['secret_key']}")));
+        // Store keys temporarily in a transient (expires in 1 minute)
+        set_transient('spb_new_api_key_' . get_current_user_id(), $key, 60);
+
+        // Redirect to API keys tab
+        wp_redirect(admin_url('tools.php?page=spb-page-builder&tab=api_keys&spb_message=1'));
         exit;
     }
+
 
     public function handle_revoke_key()
     {
@@ -140,6 +180,31 @@ class SPB_Admin_Menu
         exit;
     }
 
+    public function activate_key($id)
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'spb_api_keys';
+        $wpdb->update($table, ['status' => 'active'], ['id' => $id]);
+    }
+
+    public function handle_activate_key()
+    {
+        check_admin_referer('spb_activate_key_nonce', '_wpnonce');
+
+        if (!current_user_can('manage_options')) wp_die('Permission denied');
+
+        $id = intval($_POST['key_id'] ?? 0);
+        if ($id) {
+            $this->activate_key($id);
+        }
+
+        wp_redirect(admin_url('tools.php?page=spb-page-builder&tab=api_keys&spb_message=' . urlencode("API Key activated.")));
+        exit;
+    }
+
+
+
+
     private function render_activity_log_tab()
     {
         global $wpdb;
@@ -148,14 +213,13 @@ class SPB_Admin_Menu
 
         echo '<h2>Recent API Activity</h2>';
         echo '<table class="wp-list-table widefat fixed striped">';
-        echo '<thead><tr><th>Time</th><th>API Key ID</th><th>Endpoint</th><th>Status</th><th>Pages Created</th><th>IP</th></tr></thead><tbody>';
+        echo '<thead><tr><th>Time</th><th>API Key ID</th><th>Endpoint</th><th>Status</th><th>IP</th></tr></thead><tbody>';
         foreach ($logs as $log) {
             echo '<tr>';
             echo '<td>' . esc_html($log->timestamp) . '</td>';
             echo '<td>' . esc_html($log->api_key_id) . '</td>';
             echo '<td>' . esc_html($log->endpoint) . '</td>';
             echo '<td>' . esc_html($log->status) . '</td>';
-            echo '<td>' . esc_html($log->pages_created) . '</td>';
             echo '<td>' . esc_html($log->ip_address) . '</td>';
             echo '</tr>';
         }

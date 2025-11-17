@@ -13,9 +13,7 @@ class SPB_API_Auth
     public function __construct()
     {
         $this->key_manager = new SPB_API_Key_Manager();
-
-        // Later we will load this from settings
-        $this->rate_limit = apply_filters('spb_rate_limit_per_hour', 100);
+        $this->rate_limit = (int) get_option('spb_rate_limit', 100);
     }
 
     /**

@@ -43,6 +43,23 @@ spl_autoload_register(function ($class) {
     }
 });
 
+// enqueue scripts
+// Hook into admin_enqueue_scripts so this only runs in admin pages
+add_action('admin_enqueue_scripts', function ($hook_suffix) {
+    // Optional: only load on your plugin page
+    if ($hook_suffix !== 'tools_page_spb-page-builder') {
+        return;
+    }
+
+    wp_enqueue_script(
+        'spb-admin-api-keys',
+        SPB_PLUGIN_URL . 'assets/admin-api-keys.js',
+        ['jquery'], // dependencies
+        filemtime(SPB_PLUGIN_DIR . 'assets/admin-api-keys.js'),
+        true // load in footer
+    );
+});
+
 
 /**
  * Initialize the plugin
@@ -115,26 +132,6 @@ function spb_install_plugin()
     dbDelta($sql_page);
     dbDelta($sql);
 }
-
-// test generate key
-add_action('init', function () {
-    if (isset($_GET['spb_test_key'])) {
-        $manager = new SPB_API_Key_Manager();
-        $key = $manager->generate_key('Test Key', null);
-        print_r($key);
-        echo (wp_hash_password($key['api_key']) . "\n");
-        echo (wp_hash_password($key['secret_key']) . "\n");
-    }
-});
-
-// test use key
-add_action('init', function () {
-    if (isset($_GET['spb_test_auth'])) {
-        $auth = new SPB_API_Auth();
-        $result = $auth->authenticate_request();
-        print_r($result);
-    }
-});
 
 // add pages
 add_action('rest_api_init', function () {
