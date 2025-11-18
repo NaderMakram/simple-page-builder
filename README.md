@@ -1,116 +1,197 @@
 # Simple Page Builder
 
-**Contributors:** (your-wordpress-org-username)  
-**Tags:** rest-api, pages, bulk create, automation, page builder  
-**Requires at least:** 5.6  
-**Tested up to:** 6.4  
-**Stable tag:** 1.0.0  
-**License:** GPLv2 or later  
-**License URI:** https://www.gnu.org/licenses/gpl-2.0.html
+A secure WordPress plugin that provides a REST API endpoint for creating pages in bulk.  
+Designed with strong API key authentication, logging, admin controls, and full developer documentation.
 
-A powerful plugin for developers and administrators to automatically create pages in bulk via a secure, dedicated REST API endpoint with advanced authentication.
+---
 
-## Description
+## Core Features
 
-**Simple Page Builder** provides a secure and efficient way to programmatically create WordPress pages from external applications. It exposes a custom REST API endpoint that allows you to create single or multiple pages in one go, complete with titles, content, custom fields, and more.
+### 1. Bulk Page Creation via REST API
 
-This plugin is perfect for:
+External applications can create WordPress pages using:
 
-- **Automated Content Workflows:** Automatically generate pages from a script, a third-party service, or a headless CMS.
-- **Bulk Site Setup:** Quickly populate a new site with a predefined set of pages.
-- **Integrating with External Data Sources:** Create pages based on data from CRMs, ERPs, or other external systems.
-
-The plugin features an advanced authentication mechanism (e.g., API Key and Secret) to ensure that your site is protected and that only authorized applications can create content.
-
-## Installation
-
-1.  Upload the `simple-page-builder` folder to the `/wp-content/plugins/` directory.
-2.  Activate the plugin through the 'Plugins' menu in WordPress.
-3.  Navigate to **Settings > Simple Page Builder** to configure the plugin and generate your API credentials.
-
-## How to Use
-
-Once the plugin is activated and configured, you can start creating pages by sending `POST` requests to the custom REST API endpoint.
-
-### Authentication
-
-The plugin uses a custom authentication method to secure the endpoint. You must include your API Key and a generated signature in the request headers.
-
-- **API Key:** Your public API key.
-- **Signature:** A `SHA256` hash of the request body, concatenated with your API Secret.
-
-_(Note: This is an example. Please update with your actual authentication mechanism, such as Bearer tokens, JWT, etc.)_
-
-### API Endpoint
-
-- **URL:** `https://yourdomain.com/wp-json/spb/v1/pages`
-- **Method:** `POST`
-
-### Parameters
-
-The request body should be a JSON object containing an array of `pages`. Each page object can have the following properties:
-
-- `post_title` (string, required): The title of the page.
-- `post_content` (string, optional): The full content for the page. Default is empty.
-- `post_status` (string, optional): The page status. Accepts `publish`, `pending`, `draft`, `private`. Default is `draft`.
-- `post_parent` (integer, optional): The ID of the parent page. Default is `0`.
-- `page_template` (string, optional): The filename of the page template to use (e.g., `template-full-width.php`). Default is `default`.
-- `meta_input` (object, optional): An object of key/value pairs to be added as post meta.
-
-### Example Request
-
-Here is an example using `cURL` to create two pages at once.
-
-```bash
-#!/bin/bash
-
-API_KEY="your_api_key"
-API_SECRET="your_api_secret"
-REQUEST_BODY='{"pages":[{"post_title":"About Our Company","post_content":"This is the about page.","post_status":"publish"},{"post_title":"Contact Us","post_content":"This is the contact page.","post_status":"publish","meta_input":{"contact_email":"contact@example.com"}}]}'
-SIGNATURE=$(echo -n "$REQUEST_BODY$API_SECRET" | sha256sum | awk '{print $1}')
-
-curl -X POST "https://yourdomain.com/wp-json/spb/v1/pages" \
--H "Content-Type: application/json" \
--H "X-SPB-API-Key: $API_KEY" \
--H "X-SPB-Signature: $SIGNATURE" \
--d "$REQUEST_BODY"
+```
+POST /wp-json/pagebuilder/v1/create-pages
 ```
 
-### Example Response
+The request must include valid API credentials (API key + secret).
 
-A successful request will return a `201 Created` status and a JSON object with the results.
+---
+
+### 2. API Key Authentication System
+
+The plugin uses a secure API key + secret pair:
+
+- API keys can be generated in the WordPress admin.
+- Secret keys are shown only once.
+- API keys are hashed in the database (similar to passwords).
+- Keys can be revoked instantly.
+
+API keys include metadata such as:
+
+- Status (Active/Revoked)
+- Request Count
+- Last Used Timestamp
+- Created Date
+
+---
+
+### 3. Admin Interface (Tools → Page Builder)
+
+The admin panel includes:
+
+#### API Keys Management
+
+- Generate new API keys (name + generated key/secret)
+- View list of existing keys
+- Preview API keys (first 8 chars + \*\*\*)
+- Revoke keys
+- Track usage statistics
+
+#### API Activity Log
+
+Shows recent API requests including:
+
+- Timestamp
+- API Key Used
+- Endpoint
+- Status (Success/Failed)
+- Pages Created
+- IP Address
+
+#### Created Pages List
+
+Displays pages created via the API:
+
+- Page Title
+- Clickable URL
+- Creation Date
+- API Key Name that created it
+
+#### Plugin Settings
+
+- Rate limit (requests per hour per key)
+- Ability to enable/disable API access
+
+#### API Documentation
+
+Includes:
+
+- Authentication details
+- Example request
+- Explanation of headers
+
+---
+
+## Authentication
+
+All API requests must include these headers:
+
+```
+X-SPB-API-Key: YOUR_API_KEY
+X-SPB-API-Secret: YOUR_SECRET
+```
+
+If authentication fails, the API returns:
+
+```
+401 Unauthorized
+```
+
+Keys are securely hashed and logged.
+
+---
+
+## API Usage
+
+### Endpoint
+
+```
+POST /wp-json/pagebuilder/v1/create-pages
+Content-Type: application/json
+X-SPB-API-Key: your_key
+X-SPB-API-Secret: your_secret
+```
+
+### Request Body Example
 
 ```json
 {
-  "success": true,
-  "message": "2 pages processed.",
-  "results": [
+  "pages": [
     {
-      "status": "success",
-      "page_id": 123,
-      "post_title": "About Our Company"
+      "title": "About Us",
+      "content": "<p>This is the about page.</p>"
     },
     {
-      "status": "success",
-      "page_id": 124,
-      "post_title": "Contact Us"
+      "title": "Contact",
+      "content": "<p>Contact us at info@example.com</p>"
     }
   ]
 }
 ```
 
-## Frequently Asked Questions
+### Successful Response Example
 
-**Q: Where do I find my API Key and Secret?**  
-A: After activating the plugin, navigate to **Settings > Simple Page Builder** in your WordPress admin dashboard.
+```json
+{
+  "status": "success",
+  "created": 2,
+  "pages": [
+    { "id": 123, "title": "About Us" },
+    { "id": 124, "title": "Contact" }
+  ]
+}
+```
 
-**Q: Can I create posts or other custom post types?**  
-A: This version only supports creating pages. Future versions may include support for other post types.
+---
 
-## Changelog
+## Database Tables
 
-### 1.0.0
+The plugin creates three custom tables:
 
-- Initial release.
-- Secure REST API endpoint for bulk page creation.
-- API Key and Secret authentication.
+### 1. `wp_spb_api_keys`
+
+Stores API keys (hashed), metadata, and status.
+
+### 2. `wp_spb_api_logs`
+
+Stores every API request with full details.
+
+### 3. `wp_spb_page_logs`
+
+Stores information about pages created via the API.
+
+---
+
+## Installation
+
+Clone the repository into your `wp-content/plugins` directory:
+
+```
+git clone https://github.com/NaderMakram/simple-page-builder.git
+```
+
+Then:
+
+1. Activate the plugin from **WordPress Admin → Plugins**
+2. Navigate to **Tools → Page Builder**
+3. Generate API keys and begin using the API
+
+---
+
+## Logging & Security
+
+The plugin automatically logs:
+
+- Successful API requests
+- Failed authentication attempts
+- Page creation events
+- IP address of the requester
+- Total usage count per API key
+
+The system prevents:
+
+- Invalid or revoked keys
+- Exceeding rate limits
+- Requests when API access is disabled
